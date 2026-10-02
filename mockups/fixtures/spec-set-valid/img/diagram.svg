@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="60" viewBox="0 0 200 60" role="img" aria-label="md から html への変換">
+  <rect x="1" y="1" width="198" height="58" fill="none" stroke="#37352f"/>
+  <text x="46" y="35" font-size="16" text-anchor="middle" fill="#37352f">md</text>
+  <line x1="72" y1="30" x2="126" y2="30" stroke="#37352f"/>
+  <path d="M126 30 L118 26 L118 34 Z" fill="#37352f"/>
+  <text x="156" y="35" font-size="16" text-anchor="middle" fill="#37352f">html</text>
+</svg>

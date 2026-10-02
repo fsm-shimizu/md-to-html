@@ -1,0 +1,6 @@
+node_modules/
+mockups/generated/
+*.share.json
+
+# セット fixture のビルド出力（build_spec_set.mjs で再生成できる生成物）
+mockups/fixtures/spec-set-*/html/
