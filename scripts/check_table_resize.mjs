@@ -85,12 +85,13 @@ try {
         return {
           pageScroll: document.documentElement.scrollWidth,
           viewport: window.innerWidth,
-          stackHandlesHidden: tables.filter((t) => t.classList.contains('mdh-stackable-table')).every((t) => Array.from(t.querySelectorAll('.mdh-col-resizer')).every((h) => getComputedStyle(h).display === 'none')),
+          // 3 列以上の表も狭い画面で表のままなので、列幅のつまみを隠さない
+          stackHandlesShown: tables.filter((t) => t.classList.contains('mdh-stackable-table')).every((t) => Array.from(t.querySelectorAll('.mdh-col-resizer')).every((h) => getComputedStyle(h).display !== 'none')),
           stackCount: tables.filter((t) => t.classList.contains('mdh-stackable-table')).length
         };
       });
       check(mobile.pageScroll <= mobile.viewport, `resized table must not widen the page at 390px (page ${mobile.pageScroll}/${mobile.viewport})`);
-      check(mobile.stackCount > 0 && mobile.stackHandlesHidden, 'handles on stacked tables must be hidden at 390px');
+      check(mobile.stackCount > 0 && mobile.stackHandlesShown, 'handles on 3-column tables must stay at 390px (tables are not stacked)');
 
       console.log(`${file}: tables ${handleCounts.length}, col2 ${before[1]}→${after[1]}px, table ${tableBefore}→${metrics.tableWidth}px, shrink→${shrunk[0]}px, reset ok=${!reset.resized}, second table ${secondBefore}→${secondAfter}px, 390px page ${mobile.pageScroll}/${mobile.viewport}px`);
     } finally {

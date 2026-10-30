@@ -48,15 +48,15 @@ test('(a) hubLink オプションで main.mdh-page の第1子に nav.mdh-hub-nav
   assert.equal(first.find('a').attr('href'), './index.html');
   assert.equal(first.find('a').text(), '索引');
 
-  // AC-13: .mdh-shell 直下の構成は不変（grid 参加要素は aside + main の2つ）
+  // AC-13: .mdh-shell 直下は設定の details（中の設定ボタンとパネルは position: fixed、details 自身は position: absolute で grid に並ばない）と aside・main。grid に並ぶのは aside + main の2つ
   const shellChildren = $('.mdh-shell').children().toArray().map((el) => el.tagName);
-  assert.deepEqual(shellChildren, ['button', 'aside', 'main']);
-  const gridChildren = $('.mdh-shell').children().not('.mdh-toc-toggle').toArray().map((el) => el.tagName);
+  assert.deepEqual(shellChildren, ['details', 'aside', 'main']);
+  const gridChildren = $('.mdh-shell').children().not('.mdh-settings-menu').toArray().map((el) => el.tagName);
   assert.deepEqual(gridChildren, ['aside', 'main']);
   assert.equal($('.mdh-shell > nav.mdh-hub-nav').length, 0);
 });
 
-test('(b) hastTransforms が注入した javascript: href は sanitizer に除去される（AC-6）', async () => {
+test('(b) hastTransforms が注入した javascript: href は sanitizer に除去される', async () => {
   const poison = (tree) => {
     visit(tree, 'element', (node) => {
       if (node.tagName !== 'a') return;
@@ -102,7 +102,7 @@ test('(d) hubLink.href は isSafeUrl 検査を通す（危険スキームは Typ
   await assert.rejects(() => build('./index.html'), /must be an object/);
   await assert.rejects(() => build({ href: '' }), /non-empty href/);
 
-  // 正常系（SPEC §4.4 の ./index.html）は従来どおり出力される
+  // 正常系（./index.html）は従来どおり出力される
   const ok = await build({ href: './index.html', label: '索引' });
   assert.ok(ok.includes('<nav class="mdh-hub-nav"><a href="./index.html">索引</a></nav>'));
 });

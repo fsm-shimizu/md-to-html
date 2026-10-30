@@ -4,7 +4,12 @@ import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
 import remarkFrontmatter from 'remark-frontmatter';
+import remarkMath from 'remark-math';
+import { mathFromMarkdown } from 'mdast-util-math';
 import { visit } from 'unist-util-visit';
+import { titleLines, oneLineTitle } from './title.mjs';
+
+export { oneLineTitle };
 
 export function parseMarkdownDocument(raw, inputPath) {
   const parsed = matter(raw);
@@ -12,6 +17,8 @@ export function parseMarkdownDocument(raw, inputPath) {
   const tree = unified()
     .use(remarkParse)
     .use(remarkGfm)
+    .use(remarkMath, { singleDollarTextMath: false })
+    .use(remarkMathFenceMark)
     .use(remarkFrontmatter, ['yaml'])
     .parse(markdown);
   const normalized = normalizeHeadings(tree);
@@ -25,13 +32,33 @@ export function parseMarkdownDocument(raw, inputPath) {
   };
 }
 
+// `$$` の行で始めた式（math）が閉じているかを、解析器が閉じの記号を読んだかで記録する。
+// mdast-util-math の mathFlowFence の終わりの処理は、開きの記号で this.data.mathFlowInside を立てるので、
+// 立っているときに呼ばれたら閉じの記号。そのとき this.stack の上から最初の math の節点に印を付ける。
+const closeMathFlowFence = mathFromMarkdown().exit.mathFlowFence;
+function remarkMathFenceMark() {
+  const data = this.data();
+  (data.fromMarkdownExtensions ||= []).push({
+    exit: {
+      mathFlowFence(token) {
+        if (this.data.mathFlowInside) {
+          const node = [...this.stack].reverse().find((n) => n.type === 'math');
+          if (node) (node.data ||= {}).mdhClosed = true;
+        }
+        closeMathFlowFence.call(this, token);
+      }
+    }
+  });
+}
+
 export function extractTitle(content, data, inputPath) {
   const fallbackTitle = path.basename(inputPath, path.extname(inputPath)).replace(/[-_]+/g, ' ');
   if (typeof data.title === 'string' && data.title.trim()) {
+    const title = titleLines(data.title).join('\n');
     return {
-      title: data.title.trim(),
+      title,
       titleSource: 'frontmatter',
-      markdown: removeDuplicateLeadingH1(content, data.title.trim())
+      markdown: removeDuplicateLeadingH1(content, oneLineTitle(title))
     };
   }
 

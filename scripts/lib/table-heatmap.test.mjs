@@ -139,10 +139,10 @@ test('intermediate values follow the linear scale and every excluded header stay
   assert.equal(first.find('tbody td.mdh-heat').length, 4, 'only column A is colored');
   const alphas = first.find('tbody td.mdh-heat').map((_, cell) => $(cell).attr('style')).get();
   assert.deepEqual(alphas, [
-    '--mdh-heat: rgba(47,111,115,0.10)',
-    '--mdh-heat: rgba(47,111,115,0.28)',
-    '--mdh-heat: rgba(47,111,115,0.37)',
-    '--mdh-heat: rgba(47,111,115,0.55)'
+    '--mdh-heat: rgba(27,99,172,0.10)',
+    '--mdh-heat: rgba(27,99,172,0.28)',
+    '--mdh-heat: rgba(27,99,172,0.37)',
+    '--mdh-heat: rgba(27,99,172,0.55)'
   ]);
   assert.equal($('.mdh-doc > .mdh-table-scroll td.mdh-heat').length, 0, 'the unmarked table stays uncolored');
 });
@@ -190,7 +190,7 @@ test('extractHeatmapValuePrimary takes the first percent value, else the first n
   }
 });
 
-test('primary marker enables primary-mode coloring for its own table only; the default-marked table matches T004 (R1, R4, R5)', async () => {
+test('primary marker enables primary-mode coloring for its own table only; the default-marked table matches the default mode', async () => {
   const markdown = `# 主値モード検査
 
 <!-- mdh:heatmap -->
@@ -217,7 +217,7 @@ test('primary marker enables primary-mode coloring for its own table only; the d
   assert.equal(blocks.eq(0).find('input[name="mdh-view-1"]').length, 2);
   assert.equal(blocks.eq(1).find('input[name="mdh-view-2"]').length, 2, 'radio numbering runs across both modes, 1-based');
 
-  // R1: 既定モード側（1番目）は T004 と同一のセル値・alpha
+  // 既定モード側（1番目）は既定モードと同一のセル値・alpha
   const defaultTable = blocks.eq(0).find('table');
   assert.equal(defaultTable.find('tbody td.mdh-heat').length, 8);
   assert.equal(defaultTable.find('tbody td').filter((_, cell) => $(cell).attr('data-label') === '#').filter('.mdh-heat').length, 0);

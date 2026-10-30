@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { load } from 'cheerio';
+import { HEAT_RGB } from './lib/static-renderer.mjs';
 
 const input = process.argv[2];
 
@@ -20,7 +21,19 @@ function assert(condition, message) {
 assert($('aside.mdh-toc').length === 1, 'expected exactly one aside.mdh-toc');
 assert($('article.mdh-doc').length === 1, 'expected exactly one article.mdh-doc');
 assert($('header.mdh-title').length === 1, 'expected exactly one header.mdh-title');
-assert($('[data-action="toggle-toc"]').length === 1, 'missing toggle-toc action');
+// 目次の開閉は設定パネルへ移した。旧「目次を閉じる」ボタンは静的 HTML に出さない。
+assert($('details.mdh-settings-menu > summary[data-action="toggle-settings"]').length === 1, 'missing settings menu (details > summary[data-action="toggle-settings"])');
+assert($('details.mdh-settings-menu[open]').length === 0, 'settings menu must start closed');
+assert($('details.mdh-settings-menu #mdhSettingsPanel').length === 1, 'settings panel must be inside the settings menu');
+assert($('input[type="radio"][name="mdh-toc"]').length === 2, 'expected 2 toc radios');
+assert($('input[type="radio"][name="mdh-width"]').length === 3, 'expected 3 width radios');
+assert($('input[type="checkbox"][name="mdh-toc-drawer"]').length === 1, 'expected 1 toc drawer checkbox');
+assert($('input[name="mdh-toc-drawer"][checked]').length === 0, 'toc drawer must start closed');
+assert($('[data-action="toggle-toc"]').length === 0, 'legacy toggle-toc button must not be rendered');
+assert($('style').toArray().some((el) => $(el).text().trimStart().startsWith('/* mdh:style */')), 'style marker /* mdh:style */ is missing');
+assert($('script').toArray().filter((el) => $(el).text().trimStart().startsWith('/* mdh:script */')).length === $('script').length, 'every md-to-html script must start with /* mdh:script */');
+// 設定のスクリプトだけが欠けても他のスクリプトの目印で通らないよう、保存のキーを持つスクリプトがあることを確かめる。
+assert($('script').toArray().some((el) => $(el).text().includes("'mdh-settings:v1:'")), 'settings script (SETTINGS_SCRIPT) is missing');
 assert($('script[src]').length === 0, 'static HTML must not reference external scripts');
 assert($('aside.mdh-toc h4, aside.mdh-toc .mdh-toc-h4').length === 0, 'TOC must not contain h4 entries');
 assert($('aside.mdh-toc .mdh-toc-h1 > details[open]').length === 0, 'h1 TOC nodes must be closed by default');
@@ -67,8 +80,10 @@ $('aside.mdh-toc a').each((_, el) => {
     `TOC link must use a non-empty fragment href: ${label}`
   );
   if (href?.startsWith('#') && href.length > 1) {
-    const id = href.slice(1);
-    assert(ids.has(id), `TOC href does not resolve: ${href} (${label})`);
+    // 目次のリンク先は % を %25 にしている（見出しの記号の名前）ので、1 回復号して id と比べる
+    let id = null;
+    try { id = decodeURIComponent(href.slice(1)); } catch { /* 不正な符号化は解決しないものとして扱う */ }
+    assert(id !== null && ids.has(id), `TOC href does not resolve: ${href} (${label})`);
   }
 });
 
@@ -80,6 +95,22 @@ const tocText = $('aside.mdh-toc').text();
 const styleText = $('style').text();
 assert(styleText.includes('#cmt-imported-document pre'), 'imported document code block styling is missing');
 assert(styleText.includes('#cmt-imported-document blockquote'), 'imported document quote styling is missing');
+
+// 文書デザインの刷新: 旧デザインの装飾が残っていないこと、新デザインの必須要素があることを確かめる。
+// 本文に旧名称や色コードを書いた文書を誤って落とさないよう、装飾はタイトル領域の要素、旧スタイルは <style> の中と style 属性だけを見る。
+assert($('header.mdh-title .mdh-title-icon, header.mdh-title .mdh-title-label').length === 0, 'title decoration (◎ / Markdown Document) must not be rendered');
+for (const legacy of ['tr:nth-child(even)', 'box-shadow: 0 1px 2px', 'rgba(47,111,115', '#2f6f73', 'tbody tr:hover td { background: var(--accent-soft)']) {
+  assert(!styleText.includes(legacy), `legacy style must be removed: ${legacy}`);
+  // ヒートマップの色はセルの style 属性に出るため、属性も見る。
+  assert(!$('[style]').toArray().some((el) => $(el).attr('style').includes(legacy)), `legacy inline style must be removed: ${legacy}`);
+}
+assert(/<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com\/css2\?[^"]*IBM\+Plex\+Mono/.test(html), 'IBM Plex Mono font link is missing');
+assert(styleText.includes('--font-sans: "Noto Sans JP",'), 'Noto Sans JP font stack is missing');
+assert(styleText.includes('.sr-only {'), 'visually hidden (.sr-only) rule for footnote heading is missing');
+assert(styleText.includes('.mdh-doc em, #cmt-imported-document em { font-style: normal; }'), 'em must not be italic');
+// CSS にも同じクラス名があるため、スクリプトと CSS を別々に確かめる。動作は layout:runtime で確かめる。
+assert($('script').toArray().some((el) => $(el).text().includes("classList.add('mdh-toc-current')")), 'TOC current-section script is missing');
+assert(styleText.includes('a.mdh-toc-current'), 'TOC current-section style is missing');
 
 if (basename.includes('fixture-short')) {
   assert(
@@ -115,9 +146,8 @@ if (basename.includes('fixture-table-stack')) {
   );
   assert(!secondTable.hasClass('mdh-stackable-table'), '2-column table should remain a regular table');
   assert(styleText.includes('#cmt-imported-document table'), 'imported document table styling is missing');
-  assert(styleText.includes('.mdh-doc tbody tr:nth-child(even) td'), 'table zebra styling is missing');
   assert(styleText.includes('.mdh-doc td:empty::before'), 'empty table cell styling is missing');
-  assert(styleText.includes('box-shadow: 0 1px 2px'), 'table surface styling is missing');
+  assert(styleText.includes('.mdh-doc tbody tr:hover td, #cmt-imported-document tbody tr:hover td { background: var(--soft); }'), 'table row hover styling is missing');
   assert(
     tables.toArray().every((table) => $(table).parent().hasClass('mdh-table-scroll')),
     'every table should be wrapped in .mdh-table-scroll'
@@ -127,10 +157,10 @@ if (basename.includes('fixture-table-stack')) {
   assert(firstTable.find('td:not(.mdh-num)').length === 6, 'text cells should not be marked as mdh-num');
   assert(secondTable.find('.mdh-num').length === 0, 'text-only table should have no mdh-num cells');
   assert(styleText.includes('td.mdh-num { white-space: nowrap; text-align: right;'), 'numeric cell styling is missing');
-  assert(styleText.includes('.mdh-table-scroll { margin: 20px 0 28px; overflow-x: auto;'), 'table scroll wrapper styling is missing');
+  assert(styleText.includes('.mdh-table-scroll { margin: 24px 0; overflow-x: auto;'), 'table scroll wrapper styling is missing');
   assert(html.includes("handle.className = 'mdh-col-resizer'"), 'column resize script is missing');
   assert(styleText.includes('.mdh-col-resizer { position: absolute;'), 'column resize handle styling is missing');
-  assert(styleText.includes('.mdh-table-scroll:has(> table.mdh-stackable-table)'), 'mobile overflow reset must be limited to stackable tables');
+  assert(!/table\.mdh-stackable-table thead[^{]*\{ display: none/.test(styleText) && !styleText.includes('.mdh-table-scroll:has(> table.mdh-stackable-table)'), '3-column tables must stay tables on narrow screens (no card layout)');
 }
 
 if (basename === 'fixture-table-heatmap.html') {
@@ -160,9 +190,9 @@ if (basename === 'fixture-table-heatmap.html') {
   assert(enabledTable.find('tbody td.mdh-heat').length >= 2, 'heatmap cells should be present');
   assert(enabledTable.find('tbody td[data-label="#"].mdh-heat').length === 0, 'identifier column must not be colored');
   assert(enabledTable.find('tbody td').filter((_, el) => $(el).text().trim() === '30 人未満').hasClass('mdh-heat') === false, '人未満 cells must not be colored');
-  assert(enabledTable.find('tbody td.mdh-heat[style*="rgba(47,111,115,0.10)"]').length >= 1, 'minimum heat alpha is missing');
-  assert(enabledTable.find('tbody td.mdh-heat[style*="rgba(47,111,115,0.55)"]').length >= 1, 'maximum heat alpha is missing');
-  assert(enabledTable.find('tbody td.mdh-heat[style]').toArray().every((el) => /^--mdh-heat: rgba\(47,111,115,0\.\d{2}\)$/.test($(el).attr('style'))), 'heat cell styles should use two-decimal alpha values');
+  assert(enabledTable.find(`tbody td.mdh-heat[style*="rgba(${HEAT_RGB},0.10)"]`).length >= 1, 'minimum heat alpha is missing');
+  assert(enabledTable.find(`tbody td.mdh-heat[style*="rgba(${HEAT_RGB},0.55)"]`).length >= 1, 'maximum heat alpha is missing');
+  assert(enabledTable.find('tbody td.mdh-heat[style]').toArray().every((el) => $(el).attr('style').startsWith(`--mdh-heat: rgba(${HEAT_RGB},0.`) && /,0\.\d{2}\)$/.test($(el).attr('style'))), 'heat cell styles should use two-decimal alpha values');
   assert(tables.eq(1).find('td.mdh-heat').length === 0, 'unmarked table must not receive heatmap cells');
   assert(!html.includes('mdh:heatmap') && !html.includes('data-mdh-heatmap'), 'heatmap marker metadata must not leak into output');
   assert(styleText.includes('.mdh-doc .mdh-table-block:has(input[value="heatmap"]:checked) td.mdh-heat'), 'static document heatmap selector is missing');
@@ -180,7 +210,7 @@ if (basename === 'fixture-table-heatmap-primary.html') {
   const checkedTable = enabledBlocks.find('input[type="radio"][value="table"]:checked');
   const checkedHeatmap = enabledBlocks.find('input[type="radio"][value="heatmap"]:checked');
 
-  // T005: primary マーカーの表も T004 と同じ radio/CSS 契約を満たし、かつ主値モード特有の判定
+  // primary マーカーの表も既定モードと同じ radio/CSS 契約を満たし、かつ主値モード特有の判定
   // （補足つきセルの着色・順位列の非着色・人未満混在列の扱い）が実出力へ反映されることを確認する。
   assert(tables.length === 1, 'fixture-table-heatmap-primary should render one table');
   assert(enabledBlocks.length === markerCount, `fixture marker count should equal enabled block count (${markerCount}/${enabledBlocks.length})`);
@@ -192,8 +222,8 @@ if (basename === 'fixture-table-heatmap-primary.html') {
   assert(enabledTable.find('tbody td[data-label="到達率"].mdh-heat').length >= 2, 'primary-mode composite cells (%（分子 / 分母） 等) should be colored');
   assert(enabledTable.find('tbody td[data-label="到達率の順位"].mdh-heat').length === 0, '順位 を含む見出し列は主値モードでも非着色');
   assert(enabledTable.find('tbody td').filter((_, el) => $(el).text().trim() === '30 人未満').hasClass('mdh-heat') === false, '人未満 cells must not be colored');
-  assert(enabledTable.find('tbody td.mdh-heat[style*="rgba(47,111,115,0.10)"]').length >= 1, 'minimum heat alpha is missing');
-  assert(enabledTable.find('tbody td.mdh-heat[style*="rgba(47,111,115,0.55)"]').length >= 1, 'maximum heat alpha is missing');
+  assert(enabledTable.find(`tbody td.mdh-heat[style*="rgba(${HEAT_RGB},0.10)"]`).length >= 1, 'minimum heat alpha is missing');
+  assert(enabledTable.find(`tbody td.mdh-heat[style*="rgba(${HEAT_RGB},0.55)"]`).length >= 1, 'maximum heat alpha is missing');
   assert(!html.includes('mdh:heatmap') && !html.includes('data-mdh-heatmap'), 'heatmap marker metadata must not leak into output');
   assert(styleText.includes('.mdh-doc .mdh-table-block:has(input[value="heatmap"]:checked) td.mdh-heat'), 'static document heatmap selector is missing');
 }

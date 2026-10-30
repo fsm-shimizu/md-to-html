@@ -1,4 +1,4 @@
-// 仕様書セット出力の検証（SPEC-specdocs-pipeline.md §4.5）。
+// 仕様書セット出力の検証。
 //
 // 検査ロジックは export し、build_spec_set.mjs の swap 前検証と共用する。
 // 単体でも `node scripts/validate_spec_set.mjs <setDir|htmlDir>` で動く。
@@ -6,7 +6,7 @@
 //   2. 各 html の nav.mdh-hub-nav が存在し index.html を指す
 //   3. 全 html の相対 a[href] / img[src] が FS 上の実在ファイルへ解決する
 //   4. .md を指す相対 <a> が残っていない（span.mdh-external-md は対象外）
-//   5. 既存 validate_notion_html.mjs を各 html に対して実行し pass する（AC-12）
+//   5. 既存 validate_notion_html.mjs を各 html に対して実行し pass する
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
@@ -22,7 +22,7 @@ export const HUB_INDEX_NAME = 'index.html';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const NOTION_VALIDATOR = path.join(here, 'validate_notion_html.mjs');
 
-// 引数は setDir / htmlDir のどちらでも受ける（SPEC §4.5 は htmlDir、規約コマンドは setDir を渡すため）。
+// 引数は setDir / htmlDir のどちらでも受ける（検査は htmlDir を、規約コマンドは setDir を渡すため）。
 // マーカーの所在で判別し、判別できない場合は html/ があればそれを検査対象にする（不在は検査側で fail）。
 export function resolveHtmlDir(dir) {
   const resolved = path.resolve(dir);
@@ -104,7 +104,7 @@ export async function validateSpecSetDir(dir, { runNotionValidator = true } = {}
     }
   }
 
-  // 5. 既存 validator（AC-12）
+  // 5. 既存 validator
   if (runNotionValidator) {
     for (const name of checked) {
       try {

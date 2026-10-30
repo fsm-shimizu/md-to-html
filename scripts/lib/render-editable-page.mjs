@@ -1,4 +1,4 @@
-import { CSS as STATIC_CSS, escapeHtml, renderMeta } from './static-renderer.mjs';
+import { CSS as STATIC_CSS, FONT_LINKS, escapeHtml, renderMeta } from './static-renderer.mjs';
 import { GENERATOR_META } from './generator-marker.mjs';
 
 export function escapeJsonForHtml(value) {
@@ -18,6 +18,7 @@ export function renderEditablePage({ title, data, editableDocument, runtimeJs, e
   <meta name="viewport" content="width=device-width, initial-scale=1">
   ${GENERATOR_META}
   <title>${escapeHtml(title)}</title>
+  ${FONT_LINKS.google}
   <style>${STATIC_CSS}\n${editableCss}</style>
 </head>
 <body>
@@ -36,8 +37,6 @@ export function renderEditablePage({ title, data, editableDocument, runtimeJs, e
         </div>
         <p class="mdh-editor-help">To continue edits after rebuilding, export Markdown and rebuild from that file.</p>
         ${renderMeta(data)}
-        <div class="mdh-title-icon">◎</div>
-        <p class="mdh-title-label">Editable Markdown Document</p>
         <h1 data-field="title">${escapeHtml(title)}</h1>
       </header>
       <article class="mdh-doc mdh-editor" data-editor-root></article>

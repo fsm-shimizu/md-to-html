@@ -1,8 +1,8 @@
-// 仕様書セットの一括ビルド（SPEC-specdocs-pipeline.md §4.1・§4.3・§4.4）。
+// 仕様書セットの一括ビルド。
 //
 //   node scripts/build_spec_set.mjs <setDir>
 //
-// 出力は常に `<setDir>/html/`（SPEC A8: `--out` は設けない）。
+// 出力は常に `<setDir>/html/`（`--out` は設けない）。
 // 実行契約: lock → 起動時リコンシリエーション → `.html.tmp/` へ生成 → §4.5 検査
 //           → 削除ガード → swap（html→.html.old→html）→ .html.old 削除。
 import fs from 'node:fs';
@@ -72,7 +72,7 @@ export async function buildSpecSet(setDirInput, { log = console.log, warn = cons
   }
 
   try {
-    // 1'. 起動時リコンシリエーション（SPEC §4.1-5）
+    // 1'. 起動時リコンシリエーション
     reconcile({ realSetDir, htmlDir, tmpDir, oldDir, warn });
 
     // 2. セット索引
@@ -91,7 +91,8 @@ export async function buildSpecSet(setDirInput, { log = console.log, warn = cons
       const collected = [];
       const html = await buildNotionHtmlString(raw, doc.inputPath, {
         hastTransforms: [(tree) => rewriteSpecLinks(tree, { setIndex, currentDoc: doc, diagnostics: collected })],
-        hubLink: HUB_LINK
+        hubLink: HUB_LINK,
+        onWarning: ({ line, reason, marker }) => warn(`警告: ${doc.inputPath}:${line} ${reason}: ${marker}`)
       });
       // hast の line は「frontmatter・先頭 H1 を落とした本文」基準なので、元ファイルの行番号へ戻す
       const offset = lineOffsetOf(raw, doc.inputPath);
@@ -147,7 +148,7 @@ export async function buildSpecSet(setDirInput, { log = console.log, warn = cons
 }
 
 // ---------------------------------------------------------------------------
-// 索引ハブ（§4.3）
+// 索引ハブ
 // ---------------------------------------------------------------------------
 function renderHubPage(setIndex) {
   const { items } = buildHubModel(setIndex.docs);
@@ -159,7 +160,7 @@ function renderHubPage(setIndex) {
 }
 
 // ---------------------------------------------------------------------------
-// リコンシリエーション・削除ガード（§4.1-4・§4.1-5）
+// リコンシリエーション・削除ガード
 // ---------------------------------------------------------------------------
 function reconcile({ realSetDir, htmlDir, tmpDir, oldDir, warn }) {
   if (fs.existsSync(oldDir)) {
@@ -246,7 +247,7 @@ function specSetError(code, message) {
 }
 
 // npm script 経由（cwd がパッケージルートへ移る）でのみ INIT_CWD を優先する。
-// node 直叩きでは INIT_CWD が親プロセスから漏れていても cwd を使う（§4.1）。
+// node 直叩きでは INIT_CWD が親プロセスから漏れていても cwd を使う。
 export function resolveSetDirArg(input, { cwd = process.cwd(), initCwd = process.env.INIT_CWD } = {}) {
   const resolvedInit = initCwd ? path.resolve(initCwd) : null;
   const base = resolvedInit && cwd === packageRoot && resolvedInit !== packageRoot ? resolvedInit : cwd;
@@ -263,7 +264,7 @@ if (isMain) {
   const usage = 'Usage: node scripts/build_spec_set.mjs <setDir>';
 
   if (args.includes('--out')) {
-    console.error(`--out は実装しません（SPEC A8）。出力は常に <setDir>/html/ です。\n${usage}`);
+    console.error(`--out は実装しません。出力は常に <setDir>/html/ です。\n${usage}`);
     process.exit(1);
   }
   const unknownFlag = args.find((arg) => arg.startsWith('-'));

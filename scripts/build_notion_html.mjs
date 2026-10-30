@@ -15,7 +15,7 @@ async function main() {
   const inputPath = path.resolve(input);
   const outputPath = output ? path.resolve(output) : inputPath.replace(/\.md$/i, '.html');
   const raw = await fs.readFile(inputPath, 'utf8');
-  const html = await buildNotionHtmlString(raw, inputPath);
+  const html = await buildNotionHtmlString(raw, inputPath, { onWarning: ({ line, reason, marker }) => console.error(`警告: ${inputPath}:${line} ${reason}: ${marker}`) });
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
   await fs.writeFile(outputPath, html);
   console.log(`Wrote ${outputPath}`);

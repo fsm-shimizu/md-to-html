@@ -1,12 +1,11 @@
 // 仕様書セット（as-built 層）の純関数群。
-// SPEC-specdocs-pipeline.md §4.2（リンク書換・URL 判定表）・§4.3（索引ハブ）に対応する。
 // 副作用は「FS の読み取り」のみ（書込・プロセス終了・stdout 出力はしない）。
 import fs from 'node:fs';
 import path from 'node:path';
 import { visit } from 'unist-util-visit';
-import { parseMarkdownDocument } from './markdown-document.mjs';
+import { parseMarkdownDocument, oneLineTitle } from './markdown-document.mjs';
 
-// 索引ハブの並び順プレフィクス（SPEC §4.3・大文字小文字無視）
+// 索引ハブの並び順プレフィクス（大文字小文字無視）
 const HUB_PREFIX_ORDER = ['readme', 'requirement', 'spec', 'plan'];
 
 export function specSetError(code, message) {
@@ -16,7 +15,7 @@ export function specSetError(code, message) {
 }
 
 // ---------------------------------------------------------------------------
-// buildSetIndex — セット索引の導出（SPEC §4.1 セット定義・§4.3 衝突・§5）
+// buildSetIndex — セット索引の導出
 // ---------------------------------------------------------------------------
 export function buildSetIndex(setDir) {
   const resolvedDir = path.resolve(setDir);
@@ -45,7 +44,7 @@ export function buildSetIndex(setDir) {
     } catch {
       continue;
     }
-    // realpath でセット外を指す .md はセット外扱い（SPEC §5・symlink 封じ込め）
+    // realpath でセット外を指す .md はセット外扱い（symlink 封じ込め）
     if (path.dirname(real) !== realSetDir) continue;
 
     const stem = basename.slice(0, basename.length - path.extname(basename).length);
@@ -79,7 +78,7 @@ export function buildSetIndex(setDir) {
   };
 }
 
-// basename 配列だけを見る純粋 helper（FS 非依存・大文字小文字違いの衝突検出。SPEC §5）
+// basename 配列だけを見る純粋 helper（FS 非依存・大文字小文字違いの衝突検出）
 export function findCaseCollisions(basenames = []) {
   const seen = new Map();
   const collisions = [];
@@ -91,18 +90,18 @@ export function findCaseCollisions(basenames = []) {
   return collisions;
 }
 
-// title は parseMarkdownDocument の既存規則（frontmatter title → H1 → ファイル名）をそのまま使う（SPEC A10・§4.3）
+// title は parseMarkdownDocument の既存規則（frontmatter title → H1 → ファイル名）をそのまま使う
 function readTitle(inputPath, stem) {
   try {
     const parsed = parseMarkdownDocument(fs.readFileSync(inputPath, 'utf8'), inputPath);
-    return typeof parsed.title === 'string' && parsed.title.trim() ? parsed.title : stem;
+    return typeof parsed.title === 'string' && parsed.title.trim() ? oneLineTitle(parsed.title) : stem;
   } catch {
     return stem;
   }
 }
 
 // ---------------------------------------------------------------------------
-// rewriteSpecLinks — hast の a[href] / img[src] を書換（SPEC §4.2 判定表）
+// rewriteSpecLinks — hast の a[href] / img[src] を書換
 // ---------------------------------------------------------------------------
 export function rewriteSpecLinks(tree, { setIndex, currentDoc, diagnostics = [] } = {}) {
   if (!setIndex) throw specSetError('SPEC_SET_NO_INDEX', 'rewriteSpecLinks には setIndex が必要です');
@@ -132,7 +131,7 @@ export function rewriteSpecLinks(tree, { setIndex, currentDoc, diagnostics = [] 
     // fragment のみ（#section）／query のみ → 素通し
     if (pathPart === '') return;
 
-    // SPEC §4.2: path 部を1回だけ percent-decode してから scheme / root 相対を判定する
+    // path 部を1回だけ percent-decode してから scheme / root 相対を判定する
     // （`%2Fetc%2Fhosts` を root 相対として扱わないと再基準化で外部パスへ逃げるため）
     const decoded = decodeOnce(pathPart);
 
@@ -185,8 +184,18 @@ export function rewriteSpecLinks(tree, { setIndex, currentDoc, diagnostics = [] 
   }
 }
 
-// <a> を <span class="mdh-external-md" title="<元パス>"> へ置換（壊れリンクを残さない）
+// <a> を <span class="mdh-external-md" title="<元パス>"> へ置換（壊れリンクを残さない）。
+// リンク付きカード（a.mdh-card-link）は通常のカード（div.mdh-card）にし、アイコンを外してタイトルの中身を span で包む。
 function unlinkAnchor(node, originalUrl) {
+  const className = node.properties?.className || [];
+  if (className.includes('mdh-card-link')) {
+    node.tagName = 'div';
+    node.properties = { className: className.filter((name) => name !== 'mdh-card-link') };
+    node.children = node.children.filter((child) => !(child.type === 'element' && child.tagName === 'svg' && (child.properties?.className || []).includes('mdh-card-icon')));
+    const title = node.children.find((child) => child.type === 'element' && (child.properties?.className || []).includes('mdh-card-title'));
+    if (title) title.children = [{ type: 'element', tagName: 'span', properties: { className: ['mdh-external-md'], title: originalUrl }, children: title.children }];
+    return;
+  }
   node.tagName = 'span';
   node.properties = { className: ['mdh-external-md'], title: originalUrl };
 }
@@ -198,13 +207,13 @@ function memberOf(setIndex, absolutePath) {
   } catch {
     return null;
   }
-  // symlink 脱出・サブディレクトリはセット外（SPEC §4.2 N-6・§5）
+  // symlink 脱出・サブディレクトリはセット外
   if (path.dirname(real) !== setIndex.realSetDir) return null;
   return setIndex.byName.get(path.basename(real)) ?? null;
 }
 
 // ---------------------------------------------------------------------------
-// rebaseRelativeUrl — 出力が html/ へ1階層下がる分の基準変換（SPEC §4.2 H-5）
+// rebaseRelativeUrl — 出力が html/ へ1階層下がる分の基準変換
 // ---------------------------------------------------------------------------
 export function rebaseRelativeUrl(url, fromDir, toDir) {
   if (typeof url !== 'string' || url === '') return url;
@@ -227,7 +236,7 @@ export function rebaseRelativeUrl(url, fromDir, toDir) {
 }
 
 // ---------------------------------------------------------------------------
-// buildHubModel — 索引ハブの入力モデル（SPEC §4.3）
+// buildHubModel — 索引ハブの入力モデル
 // ---------------------------------------------------------------------------
 export function buildHubModel(docs = []) {
   const items = docs
@@ -265,7 +274,7 @@ function hasScheme(pathPart) {
   return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(pathPart);
 }
 
-// percent-decode は1回だけ（SPEC §4.2・§5）
+// percent-decode は1回だけ
 function decodeOnce(pathPart) {
   try {
     return decodeURIComponent(pathPart);

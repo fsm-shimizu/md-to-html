@@ -952,6 +952,7 @@ function renderTocLink(node, className) {
   link.className = className;
   link.href = `#${node.id}`;
   link.textContent = node.text;
+  link.title = node.text;
   link.addEventListener('click', () => {
     if (shell && window.matchMedia('(max-width: 860px)').matches) {
       shell.classList.add('mdh-toc-collapsed');

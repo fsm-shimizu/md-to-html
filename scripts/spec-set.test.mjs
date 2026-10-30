@@ -1,5 +1,5 @@
-// 仕様書セット純関数群の単体テスト（SPEC §4.2 URL 判定表・§4.3 索引ハブ・AC-14）
-// ＋セットビルド CLI・検証スクリプトの統合テスト（SPEC §4.1・§4.5・AC-1〜8・AC-12/13/15）
+// 仕様書セット純関数群の単体テスト（URL 判定表）
+// ＋セットビルド CLI・検証スクリプトの統合テスト
 // AC-14: §4.2 判定表の全行に最低1ケース。テスト名の「判定表 行N」で行との対応を可視化する。
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -91,7 +91,7 @@ const errorsOf = (diagnostics) => diagnostics.filter((d) => d.severity === 'erro
 const warningsOf = (diagnostics) => diagnostics.filter((d) => d.severity === 'warning');
 
 // ---------------------------------------------------------------------------
-// buildSetIndex（SPEC §4.1 セット定義・§4.3 衝突・§5 degradation）
+// buildSetIndex
 // ---------------------------------------------------------------------------
 test('buildSetIndex: setDir 直下の *.md のみを再帰なしで採録する', () => {
   const names = setIndex.docs.map((doc) => doc.basename).sort();
@@ -124,13 +124,13 @@ test('buildSetIndex: 拡張子判定は小文字化後（.MD を採録する）'
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('buildSetIndex: セットが空なら fail（SPEC §5）', () => {
+test('buildSetIndex: セットが空なら fail', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mdh-specset-empty-'));
   assert.throws(() => buildSetIndex(dir), (err) => err.code === 'SPEC_SET_EMPTY');
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('buildSetIndex: index.md 同梱は fail（SPEC §4.3・生成物と衝突）', () => {
+test('buildSetIndex: index.md 同梱は fail', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mdh-specset-index-'));
   fs.writeFileSync(path.join(dir, 'SPEC-a.md'), '# a\n');
   fs.writeFileSync(path.join(dir, 'index.md'), '# i\n');
@@ -147,7 +147,7 @@ test('findCaseCollisions: 大文字小文字違いの衝突を配列入力だけ
   assert.equal(findCaseCollisions(['A.md', 'a.md', 'B.MD', 'b.md']).length, 2);
 });
 
-test('buildSetIndex: basename の大文字小文字違い衝突は fail（SPEC §5）', { skip: caseSensitiveFs ? false : '大文字小文字を区別しない FS のため fixture を作成できない（分岐自体は findCaseCollisions のテストで常時検査）' }, () => {
+test('buildSetIndex: basename の大文字小文字違い衝突は fail', { skip: caseSensitiveFs ? false : '大文字小文字を区別しない FS のため fixture を作成できない（分岐自体は findCaseCollisions のテストで常時検査）' }, () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mdh-specset-case-'));
   fs.writeFileSync(path.join(dir, 'SPEC-a.md'), '# a\n');
   fs.writeFileSync(path.join(dir, 'spec-a.md'), '# b\n');
@@ -155,11 +155,11 @@ test('buildSetIndex: basename の大文字小文字違い衝突は fail（SPEC �
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('buildSetIndex: realpath がセット外へ脱出する symlink .md はセット外扱いで除外する（SPEC §5）', () => {
+test('buildSetIndex: realpath がセット外へ脱出する symlink .md はセット外扱いで除外する', () => {
   assert.equal(setIndex.docs.some((doc) => doc.basename === 'LINKED.md'), false);
 });
 
-test('buildSetIndex: docs に title を持つ（frontmatter → H1 → ファイル名。SPEC A10・§4.3）', () => {
+test('buildSetIndex: docs に title を持つ（frontmatter → H1 → ファイル名）', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mdh-specset-title-'));
   fs.writeFileSync(path.join(dir, 'SPEC-front.md'), '---\ntitle: 前置きタイトル\n---\n\n# 別見出し\n');
   fs.writeFileSync(path.join(dir, 'SPEC-h1.md'), '# H1 タイトル\n\n本文\n');
@@ -172,7 +172,7 @@ test('buildSetIndex: docs に title を持つ（frontmatter → H1 → ファイ
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('buildSetIndex → buildHubModel: 索引ハブは docs の title を表示に使う（§4.3）', () => {
+test('buildSetIndex → buildHubModel: 索引ハブは docs の title を表示に使う', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mdh-specset-hubtitle-'));
   fs.writeFileSync(path.join(dir, 'SPEC-foo.md'), '# 仕様書（実物）\n');
   fs.writeFileSync(path.join(dir, 'README.md'), '# 読みもの\n');
@@ -243,6 +243,24 @@ test('判定表 行2: セット外実在 .md の a[href] は span.mdh-external-m
   assert.equal(warningsOf(diagnostics)[0].url, '../outside/EXTERNAL.md');
   assert.equal(warningsOf(diagnostics)[0].file, currentDoc.inputPath);
   assert.equal(warningsOf(diagnostics)[0].line, 7);
+});
+
+test('判定表 行2: セット外の .md へのリンク付きカードは div.mdh-card の通常のカードになる', () => {
+  const card = el('a', { className: ['mdh-card', 'mdh-card-link'], href: '../outside/EXTERNAL.md' }, [
+    el('svg', { className: ['mdh-card-icon'], ariaHidden: 'true' }),
+    el('p', { className: ['mdh-card-title'] }, [{ type: 'text', value: '外の文書' }]),
+    el('div', { className: ['mdh-card-body'] }, [el('p', {}, [{ type: 'text', value: '本文' }])])
+  ]);
+  const { diagnostics } = run(card);
+  assert.equal(card.tagName, 'div');
+  assert.deepEqual(card.properties.className, ['mdh-card']);
+  assert.equal('href' in card.properties, false);
+  assert.deepEqual(card.children.map((c) => `${c.tagName}.${c.properties.className.join('.')}`), ['p.mdh-card-title', 'div.mdh-card-body']);
+  const span = card.children[0].children[0];
+  assert.equal(span.tagName, 'span');
+  assert.deepEqual(span.properties, { className: ['mdh-external-md'], title: '../outside/EXTERNAL.md' });
+  assert.deepEqual(span.children, [{ type: 'text', value: '外の文書' }]);
+  assert.deepEqual(warningsOf(diagnostics).map((d) => d.kind), ['external-md']);
 });
 
 test('判定表 行2: サブディレクトリ内の実在 .md もセット外扱い（N-6）', () => {
@@ -358,7 +376,7 @@ test('判定表 行7: 相対の非 .md が FS 上に不在なら fail', () => {
 });
 
 // ---------------------------------------------------------------------------
-// percent-encoding の正規化（SPEC §4.2「1回 decode してから判定」・§5）
+// percent-encoding の正規化
 // ---------------------------------------------------------------------------
 test('percent: %2F… は decode 後に root 相対と判定して素通し＋warning（再基準化しない）', () => {
   const { node, diagnostics } = run(anchor('%2Fetc%2Fhosts'));
@@ -458,7 +476,7 @@ test('rewriteSpecLinks: tree を返し diagnostics を積み上げる（複数�
 });
 
 // ---------------------------------------------------------------------------
-// rebaseRelativeUrl（SPEC §4.2・H-5）
+// rebaseRelativeUrl
 // ---------------------------------------------------------------------------
 test('rebaseRelativeUrl: html/ へ1階層下がる分を ../ で補正する', () => {
   assert.equal(rebaseRelativeUrl('./img/a.png', setDir, path.join(setDir, 'html')), '../img/a.png');
@@ -487,7 +505,7 @@ test('rebaseRelativeUrl: 空文字・非文字列は素通し', () => {
 });
 
 // ---------------------------------------------------------------------------
-// buildHubModel（SPEC §4.3）
+// buildHubModel
 // ---------------------------------------------------------------------------
 const hubDocs = [
   { basename: 'guide.md', outName: 'guide.html', title: '運用ガイド' },
@@ -538,7 +556,7 @@ test('buildHubModel: 入力配列を破壊しない（純関数）', () => {
 
 // ===========================================================================
 // セットビルド CLI・検証スクリプトの統合テスト（Task 3）
-// SPEC §4.1 実行契約 / §4.3 索引ハブ / §4.4 ハブナビ / §4.5 検査
+// 実行契約 / 索引ハブ / ハブナビ / 検査
 // AC-1・AC-2・AC-3・AC-4・AC-5・AC-7・AC-8・AC-12・AC-13・AC-15
 // ===========================================================================
 const execFileAsync = promisify(execFile);
@@ -646,7 +664,7 @@ test('AC-1: 正常セットのビルドで文書数+1 の html が出て相互�
   assert.equal($('.mdh-external-md').length, 0, 'valid セットではリンク解除が発生しないこと');
 });
 
-test('AC-1: 全ページの main 第1子が nav.mdh-hub-nav で index.html を指す（§4.4）', async () => {
+test('AC-1: 全ページの main 第1子が nav.mdh-hub-nav で index.html を指す', async () => {
   const setDir = copyFixture('spec-set-valid');
   assert.equal((await buildSet(setDir)).code, 0);
   const htmlDir = path.join(setDir, 'html');
@@ -660,7 +678,7 @@ test('AC-1: 全ページの main 第1子が nav.mdh-hub-nav で index.html を�
   }
 });
 
-test('AC-13: セット出力の .mdh-shell 直接子は button/aside/main のまま（grid 非破壊）', async () => {
+test('AC-13: セット出力の .mdh-shell 直接子は設定の details・aside・main（grid に並ぶのは aside・main）', async () => {
   const setDir = copyFixture('spec-set-valid');
   assert.equal((await buildSet(setDir)).code, 0);
   const htmlDir = path.join(setDir, 'html');
@@ -668,14 +686,14 @@ test('AC-13: セット出力の .mdh-shell 直接子は button/aside/main のま
   for (const name of htmlNamesOf(htmlDir)) {
     const $ = load(fs.readFileSync(path.join(htmlDir, name), 'utf8'));
     const children = $('.mdh-shell').children().toArray().map((el) => el.tagName);
-    assert.deepEqual(children, ['button', 'aside', 'main'], name);
-    const gridChildren = $('.mdh-shell').children().not('.mdh-toc-toggle').toArray().map((el) => el.tagName);
+    assert.deepEqual(children, ['details', 'aside', 'main'], name);
+    const gridChildren = $('.mdh-shell').children().not('.mdh-settings-menu').toArray().map((el) => el.tagName);
     assert.deepEqual(gridChildren, ['aside', 'main'], name);
     assert.equal($('.mdh-shell > nav.mdh-hub-nav').length, 0, name);
   }
 });
 
-test('AC-1: 索引ハブは README→REQUIREMENT→SPEC→PLAN→その他の順に全文書を列挙する（§4.3）', async () => {
+test('AC-1: 索引ハブは README→REQUIREMENT→SPEC→PLAN→その他の順に全文書を列挙する', async () => {
   const setDir = copyFixture('spec-set-valid');
   assert.equal((await buildSet(setDir)).code, 0);
 
@@ -842,7 +860,7 @@ test('AC-7: マーカー削除・リンク破壊・ハブナビ削除の各改�
   assert.equal((await validateSet(htmlDir)).code, 0);
 });
 
-test('AC-7: .md を指す相対 a[href] が残っていると validate_spec_set が fail する（§4.5-4）', async () => {
+test('AC-7: .md を指す相対 a[href] が残っていると validate_spec_set が fail する', async () => {
   const setDir = copyFixture('spec-set-valid');
   assert.equal((await buildSet(setDir)).code, 0);
   const htmlDir = path.join(setDir, 'html');
@@ -949,9 +967,9 @@ test('AC-15(iii): .html.old と html が併存する状態（rename2 後）か�
 });
 
 // ---------------------------------------------------------------------------
-// CLI の引数契約（SPEC A8: --out は実装しない）
+// CLI の引数契約（--out は実装しない）
 // ---------------------------------------------------------------------------
-test('CLI: --out は実装せず、指定されたら fail する（SPEC A8・出力は <setDir>/html 固定）', async () => {
+test('CLI: --out は実装せず、指定されたら fail する（出力は <setDir>/html 固定）', async () => {
   const setDir = copyFixture('spec-set-valid');
   const result = await runNode(buildCli, [setDir, '--out', path.join(setDir, 'anywhere')]);
   assert.notEqual(result.code, 0);
@@ -966,7 +984,7 @@ test('CLI: 引数なしは usage を出して fail する', async () => {
   assert.match(`${result.stdout}${result.stderr}`, /Usage/i);
 });
 
-test('CLI: 相対パス引数を cwd 基準で解決する（§4.1）', async () => {
+test('CLI: 相対パス引数を cwd 基準で解決する', async () => {
   const setDir = copyFixture('spec-set-valid');
   const parent = path.dirname(setDir);
   const { code } = await (async () => {
@@ -979,4 +997,12 @@ test('CLI: 相対パス引数を cwd 基準で解決する（§4.1）', async ()
   })();
   assert.equal(code, 0);
   assert.ok(fs.existsSync(path.join(setDir, 'html', 'index.html')));
+});
+
+test('buildSetIndex: 改行を含む title は一覧で 1 行になる', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mdh-specset-multiline-title-'));
+  fs.writeFileSync(path.join(dir, 'SPEC-two.md'), '---\ntitle: |-\n  部品の検査\n  見本 2a\n---\n\n本文\n');
+  const index = buildSetIndex(dir);
+  assert.equal(index.docs.find((doc) => doc.basename === 'SPEC-two.md').title, '部品の検査 見本 2a');
+  fs.rmSync(dir, { recursive: true, force: true });
 });

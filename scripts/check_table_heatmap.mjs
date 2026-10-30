@@ -11,7 +11,7 @@ const DEFAULT_TARGETS = [
   'mockups/generated/fixture-table-heatmap-primary.html'
 ];
 // ファイルごとに検査対象の列（着色される数値列／着色されない識別列）のヘッダー文字列を切り替える。
-// 既定fixtureは T004 のまま「人口」「#」。主値fixture（T005）は「到達率」「到達率の順位」。
+// 既定fixtureは「人口」「#」。主値fixtureは「到達率」「到達率の順位」。
 const TARGET_CONFIGS = {
   'fixture-table-heatmap.html': { numericLabel: '人口', identifierLabel: '#' },
   'fixture-table-heatmap-primary.html': { numericLabel: '到達率', identifierLabel: '到達率の順位' }
